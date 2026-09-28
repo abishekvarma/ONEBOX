@@ -87,15 +87,7 @@ jobs:
           set -euo pipefail
           R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Book this movie when tickets open"}')
           printf "SCHEDULE_RESPONSE=%s\n" "$R"
-          python - "$R" <<'PY'
-import json,sys
-d=json.loads(sys.argv[1])
-assert d.get("status")=="WAITING", d
-result=d.get("result") or {}
-assert result.get("triggerType")=="SLOT", d
-assert result.get("scheduledTaskId"), d
-print(result["scheduledTaskId"])
-PY
+          echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("status")=="WAITING",d; r=d.get("result") or {}; assert r.get("triggerType")=="SLOT",d; assert r.get("scheduledTaskId"),d'
           SID=$(printf '%s' "$R" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["scheduledTaskId"])')
           echo "SCHEDULED_TASK_ID=$SID" >> "$GITHUB_ENV"
 
@@ -106,13 +98,7 @@ PY
           curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/observation" -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"available":true}' >/dev/null
           L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           printf "SCHEDULED_TASKS=%s\n" "$L"
-          python - "$L" "$SID" <<'PY'
-import json,sys
-d=json.loads(sys.argv[1])
-s=next(x for x in d if x["id"]==sys.argv[2])
-assert s["status"]=="CONDITION_MET", s
-assert s["notificationStatus"]=="PENDING_CONFIRMATION", s
-PY
+          echo "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=next(x for x in d if x["id"]==sys.argv[1]); assert s["status"]=="CONDITION_MET",s; assert s["notificationStatus"]=="PENDING_CONFIRMATION",s' "$SID"
           C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           printf "CONFIRM_RESPONSE=%s\n" "$C"
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED", d'
