@@ -17,7 +17,7 @@ const context = await chromium.launchPersistentContext(DATA_DIR,{headless:true,a
 let page = context.pages()[0] || await context.newPage();
 
 function ok(res,data){res.writeHead(200,{'content-type':'application/json','access-control-allow-origin':WEB_ORIGIN,'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,x-onebox-session'});res.end(JSON.stringify(data));}
-function fail(res,code,message){res.writeHead(code,{'content-type':'application/json','access-control-allow-origin':'http://localhost:5173','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,x-onebox-session'});res.end(JSON.stringify({success:false,status:'ERROR',message}));}
+function fail(res,code,message){res.writeHead(code,{'content-type':'application/json','access-control-allow-origin':WEB_ORIGIN,'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,x-onebox-session'});res.end(JSON.stringify({success:false,status:'ERROR',message}));}
 function authorized(req){ if(!SESSION_SECRET) return true; const supplied=String(req.headers['x-onebox-session']||''); const parts=supplied.split('.'); if(parts.length!==3)return false; const [exp,nonce,sig]=parts; if(Number(exp)<Math.floor(Date.now()/1000))return false; const expected=crypto.createHmac('sha256',SESSION_SECRET).update(`${exp}.${nonce}`).digest('hex'); return sig.length===expected.length && crypto.timingSafeEqual(Buffer.from(sig),Buffer.from(expected)); }
 function hostAllowed(url){ if(!allowedHosts.length)return true; try{const h=new URL(url).hostname.toLowerCase();return allowedHosts.some(x=>h===x||h.endsWith('.'+x));}catch{return false;} }
 function simplifyHtml(html){return html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/\s+/g,' ').slice(0,100000)}
@@ -54,7 +54,7 @@ async function execute(plan,finalConfirm){
   return {success:true,status:'EXECUTED',message:'Provider actions executed. Any OTP, CAPTCHA, UPI PIN, biometric or other user-authentication step remains in the provider UI.',providerReference:null,providerUrl:page.url(),data:plan.data||{}};
 }
 const server=http.createServer((req,res)=>{
-  if(req.method==='OPTIONS'){res.writeHead(204,{'access-control-allow-origin':'http://localhost:5173','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,x-onebox-session'});return res.end();}
+  if(req.method==='OPTIONS'){res.writeHead(204,{'access-control-allow-origin':WEB_ORIGIN,'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,x-onebox-session'});return res.end();}
   if(req.method==='GET'&&req.url==='/health')return ok(res,{status:'ok',service:'onebox-local-agent',browserDataDir:DATA_DIR});
   if(!authorized(req))return fail(res,401,'Invalid execution session.');
   if(req.method!=='POST'||!['/prepare','/execute'].includes(req.url))return fail(res,404,'Not found');
