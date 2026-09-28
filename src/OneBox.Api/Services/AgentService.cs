@@ -6,13 +6,19 @@ using OneBox.Api.Models;
 
 namespace OneBox.Api.Services;
 
-public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfiguration cfg, GooglePlacesService places, ConnectorRegistry connectors, MovieDiscoveryService movies)
+public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfiguration cfg, GooglePlacesService places, ConnectorRegistry connectors, MovieDiscoveryService movies,ScheduledTaskService scheduler)
 {
     public async Task<AgentResponse> RunAsync(Guid userId, string message, bool confirm, CancellationToken ct)
     {
         var language=LanguageService.Detect(message);var plan=await PlanAsync(message,language,ct);
         var task=await CreateTaskAsync(userId,plan,ct);
         if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}
+        if(TryBuildSchedule(message,out var trigger,out var runAt,out var condition)){
+            db.Tasks.Remove(task);
+            var linked=await scheduler.CreateLinkedAsync(userId,plan,trigger,runAt,condition,ct);
+            var notice=trigger=="PRICE"?"I’ll watch the price and stop for your confirmation when it reaches your limit.":trigger=="SLOT"?"I’ll watch for the slot/tickets to open and stop for your confirmation when they do.":"I’ll wait until the scheduled time, then ask for your confirmation before executing.";
+            return new(linked.Task.Id,"WAITING",false,notice,plan,new{scheduledTaskId=linked.Schedule.Id,triggerType=trigger});
+        }
         if(plan.Type=="MOVIE_BOOKING"){var title=ExtractMovieTitle(plan.Details);var options=await movies.SearchAsync(title,ct);if(options.Count>0){task.Status="OPTIONS_READY";task.ResultJson=JsonSerializer.Serialize(options);await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,$"I found {options.Count} movie matches. Choose the movie you want, then I’ll find nearby cinemas and showtimes.",plan,options);} }
         if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,LanguageService.Text("confirm",language),plan,null);}
         return await ConfirmAsync(userId,task.Id,ct);
@@ -119,6 +125,22 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
     }
 
     private static string ExtractMovieTitle(string details){var m=System.Text.RegularExpressions.Regex.Match(details, @"\b(?:for|called|named)\s+(.+)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);return m.Success?m.Groups[1].Value.Trim():details.Replace("book me a movie ticket","",StringComparison.OrdinalIgnoreCase).Trim();}
+
+    private static bool TryBuildSchedule(string message,out string trigger,out DateTime? runAt,out string? condition)
+    {
+        trigger="";runAt=null;condition=null;var s=message.ToLowerInvariant();
+        if(s.Contains("if")&&(s.Contains("below")||s.Contains("under")||s.Contains("less than"))&&(s.Contains("price")||s.Contains("cost")||s.Contains("buy"))){
+            var m=System.Text.RegularExpressions.Regex.Match(s,@"(?:below|under|less than)\s*(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*)");
+            if(!m.Success)m=System.Text.RegularExpressions.Regex.Match(s,@"(?:₹|rs\.?|inr)\s*([0-9][0-9,]*)");
+            if(m.Success&&decimal.TryParse(m.Groups[1].Value.Replace(",",""),out var limit)){trigger="PRICE";condition=JsonSerializer.Serialize(new{threshold=limit});return true;}
+        }
+        if(s.Contains("when tickets open")||s.Contains("when ticket sales open")||s.Contains("when slots open")||s.Contains("when a slot opens")||s.Contains("when slot opens")||s.Contains("when availability opens")){trigger="SLOT";condition=JsonSerializer.Serialize(new{available=false});return true;}
+        if(s.Contains("schedule")||s.Contains("tomorrow at")||s.Contains("today at")||(s.Contains("on ")&&s.Contains(" at "))){
+            var m=System.Text.RegularExpressions.Regex.Match(message,@"(?:at|on)\s+(\d{1,2}[:.](?:\d{2})\s*(?:am|pm)?)",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if(m.Success&&DateTime.TryParse(m.Groups[1].Value,out var parsed)){runAt=DateTime.SpecifyKind(parsed,DateTimeKind.Utc);if(s.Contains("tomorrow"))runAt=runAt.Value.AddDays(1);trigger="TIME";return true;}
+        }
+        return false;
+    }
 
     private static AgentPlan Heuristic(string m)
     {
