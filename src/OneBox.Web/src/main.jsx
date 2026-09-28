@@ -60,7 +60,7 @@ function Chat(){
    const d=confirm&&pending?.taskId?await api('/api/tasks/'+pending.taskId+'/confirm',{method:'POST'}):await api('/api/tasks/agent',{method:'POST',body:JSON.stringify({message:text})});
    setItems(x=>[...x,{role:'agent',text:d.message}]);
    if(d.status==='AWAITING_INPUT'){setAwaitingInput(d.plan?.details||text);setPending({message:d.plan?.details||text,taskId:d.taskId});}
-   else if(Array.isArray(d.result)&&d.plan?.type==='MOVIE_BOOKING'){setMovieOptions(d.result);setAwaitingInput(null);setPending(null);}
+   else if(Array.isArray(d.result)&&d.plan?.type==='MOVIE_BOOKING'){setMovieOptions(d.result);setAwaitingInput(null);setPending({message:text,plan:d.plan,taskId:d.taskId});}
    else if(d.requiresConfirmation){setAwaitingInput(null);setPending({message:text,plan:d.plan,taskId:d.taskId});}
    else{setAwaitingInput(null);setPending(null);if(d.status==='READY'){let startUrl='';try{const p=await api('/api/provider-catalog/for-task/'+encodeURIComponent(d.plan?.type||'GENERAL'));startUrl=p.startUrl||''}catch{}setBrowser({taskId:d.taskId,goal:d.plan?.details||text,startUrl})}}
   }catch(e){setItems(x=>[...x,{role:'agent',text:e.message}])}finally{setBusy(false)}
