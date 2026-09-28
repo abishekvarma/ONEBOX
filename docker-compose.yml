@@ -27,6 +27,9 @@ services:
       AI__Model: ${OPENAI_MODEL}
       Google__ApiKey: ${GOOGLE_API_KEY}
       TMDB__ApiKey: ${TMDB_API_KEY}
+      OTP__Provider: ${OTP_PROVIDER:-development}
+      OTP__ResendApiKey: ${OTP_RESEND_API_KEY}
+      OTP__FromEmail: ${OTP_FROM_EMAIL}
       Security__ExposeOtpInDevelopment: ${EXPOSE_OTP_IN_DEVELOPMENT:-false}
       Cors__Origins: ${CORS_ORIGINS:-http://localhost:5173}
       Payments__phonepe__CheckoutUrl: ${PAYMENTS_PHONEPE_CHECKOUT_URL}
