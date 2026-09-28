@@ -85,21 +85,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RUN_AT=$(python -c 'from datetime import datetime,timedelta,timezone; print((datetime.now(timezone.utc)-timedelta(seconds=5)).isoformat().replace("+00:00","Z"))')
-          S=$(curl -fsS -X POST http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d "{\"title\":\"CI scheduled movie booking\",\"type\":\"MOVIE_BOOKING\",\"triggerType\":\"TIME\",\"runAtUtc\":\"$RUN_AT\",\"payloadJson\":\"{\\\"movie\\\":\\\"Avatar\\\"}\"}")
-          SID=$(printf '%s' "$S" | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          for i in {1..20}; do
+          R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Book this movie when tickets open"}')
+          echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING"; assert d["result"]["triggerType"]=="SLOT"'
+          SID=$(printf '%s' "$R" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["scheduledTaskId"])')
+          curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/observation" -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"available":true}' >/dev/null
+          for i in {1..10}; do
             L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
             if printf '%s' "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x["id"]=="'$SID'"][0]; assert s["status"]=="CONDITION_MET"' 2>/dev/null; then break; fi
             sleep 2
           done
           printf '%s' "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x["id"]=="'$SID'"][0]; assert s["status"]=="CONDITION_MET"'
-          P=$(curl -fsS -X POST http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"title":"CI price condition","type":"SHOPPING","triggerType":"PRICE","conditionJson":"{\"threshold\":55000,\"observedPrice\":60000}"}')
-          PID=$(printf '%s' "$P" | python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$PID/observation" -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"threshold":55000,"observedPrice":54999}' >/dev/null
-          sleep 7
-          L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
-          printf '%s' "$L" | python -c 'import json,sys; d=json.load(sys.stdin); p=[x for x in d if x["id"]=="'$PID'"][0]; assert p["status"]=="CONDITION_MET"'
+          C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED"'
+          P=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Buy this phone if it goes below ₹55000"}')
+          echo "$P" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING"; assert d["result"]["triggerType"]=="PRICE"'
       - name: Test browser agent
         shell: bash
         run: |
