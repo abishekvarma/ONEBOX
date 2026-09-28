@@ -17,6 +17,11 @@ services:
       Execution__LocalAgentUrl: http://agent:8787
       Execution__AgentSharedSecret: ${ONEBOX_AGENT_SECRET}
       Execution__Mode: ${ONEBOX_EXECUTION_MODE}
+      AI__ApiKey: ${OPENAI_API_KEY}
+      AI__Model: ${OPENAI_MODEL}
+      Google__ApiKey: ${GOOGLE_API_KEY}
+      Security__ExposeOtpInDevelopment: ${EXPOSE_OTP_IN_DEVELOPMENT:-false}
+      Cors__Origins: ${CORS_ORIGINS:-http://localhost:5173}
       Payments__phonepe__CheckoutUrl: ${PAYMENTS_PHONEPE_CHECKOUT_URL}
       Payments__phonepe__WebhookSecret: ${PAYMENTS_PHONEPE_WEBHOOK_SECRET}
       Payments__razorpay__CheckoutUrl: ${PAYMENTS_RAZORPAY_CHECKOUT_URL}
@@ -41,8 +46,8 @@ services:
   web:
     build: ./src/OneBox.Web
     environment:
-      VITE_API_URL: http://localhost:5080
-      VITE_ONEBOX_AGENT_URL: http://127.0.0.1:8787
+      VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:5080}
+      VITE_ONEBOX_AGENT_URL: ${PUBLIC_AGENT_URL:-http://127.0.0.1:8787}
     ports: ["5173:80"]
     depends_on: [api,agent]
 
