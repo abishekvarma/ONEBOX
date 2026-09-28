@@ -3,13 +3,13 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;using Microsoft.AspNetCore.RateLimiting;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;using OneBox.Api.Data;using OneBox.Api.Models;using OneBox.Api.Security;
 namespace OneBox.Api.Controllers;
 [ApiController,Route("api/auth"),EnableRateLimiting("auth")]
-public sealed class AuthController(OneBoxDb db,IPasswordHasher<AppUser> hasher,IConfiguration cfg):ControllerBase{
+public sealed class AuthController(OneBoxDb db,IPasswordHasher<AppUser> hasher,IConfiguration cfg,OtpDeliveryService otpDelivery):ControllerBase{
  [HttpPost("register")]public async Task<IActionResult> Register(RegisterRequest r,CancellationToken ct){
   if(string.IsNullOrWhiteSpace(r.Name)||string.IsNullOrWhiteSpace(r.Email)||r.Password.Length<8||string.IsNullOrWhiteSpace(r.Phone))return BadRequest(new{message="Name, email, phone and an 8+ character password are required."});
   var email=r.Email.Trim().ToLowerInvariant(); var phone=r.Phone.Trim();
   if(await db.Users.AnyAsync(x=>x.Email==email,ct))return Conflict(new{message="Email already registered."});
-  var u=new AppUser{Name=r.Name.Trim(),Email=email,Phone=phone,Role="USER",PhoneVerified=false};u.PasswordHash=hasher.HashPassword(u,r.Password);IssueOtp(u);db.Users.Add(u);await db.SaveChangesAsync(ct);
-  var response=new{message="Registration created. Verify the mobile OTP before login."};
+  var u=new AppUser{Name=r.Name.Trim(),Email=email,Phone=phone,Role="USER",PhoneVerified=false};u.PasswordHash=hasher.HashPassword(u,r.Password);IssueOtp(u);db.Users.Add(u);await db.SaveChangesAsync(ct);await otpDelivery.SendAsync(email,phone,u.TempOtp!,ct);
+  var response=new{message=cfg["OTP:Provider"] is "resend" or "email" ? "Account created. A verification code was sent to your email." : "Registration created. Verify the mobile OTP before login."};
   if(cfg.GetValue<bool>("Security:ExposeOtpInDevelopment") && !builderEnvironmentIsProduction()) return Ok(new{response,developmentOtp=GetDevelopmentOtp(u)});
   return Ok(response);
  }
@@ -23,7 +23,7 @@ public sealed class AuthController(OneBoxDb db,IPasswordHasher<AppUser> hasher,I
  }
  [HttpPost("resend-otp")]public async Task<IActionResult> ResendOtp(ResendOtpRequest r,CancellationToken ct){
   var email=r.Email.Trim().ToLowerInvariant();var u=await db.Users.SingleOrDefaultAsync(x=>x.Email==email,ct);if(u is null)return Ok(new{message="If the account exists, a new OTP has been requested."});
-  if(u.PhoneVerified)return Ok(new{message="Mobile number already verified."});IssueOtp(u);await db.SaveChangesAsync(ct);var response=new{message="If the account exists, a new OTP has been requested."};if(cfg.GetValue<bool>("Security:ExposeOtpInDevelopment")&&!builderEnvironmentIsProduction())return Ok(new{response,developmentOtp=GetDevelopmentOtp(u)});return Ok(response);
+  if(u.PhoneVerified)return Ok(new{message="Mobile number already verified."});IssueOtp(u);await db.SaveChangesAsync(ct);await otpDelivery.SendAsync(email,u.Phone,u.TempOtp!,ct);var response=new{message="If the account exists, a new OTP has been requested."};if(cfg.GetValue<bool>("Security:ExposeOtpInDevelopment")&&!builderEnvironmentIsProduction())return Ok(new{response,developmentOtp=GetDevelopmentOtp(u)});return Ok(response);
  }
  [HttpPost("login")]public async Task<IActionResult> Login(LoginRequest r,CancellationToken ct){
   var u=await db.Users.SingleOrDefaultAsync(x=>x.Email==r.Email.Trim().ToLowerInvariant(),ct);if(u is null||hasher.VerifyHashedPassword(u,u.PasswordHash,r.Password)==PasswordVerificationResult.Failed)return Unauthorized(new{message="Invalid email or password."});
