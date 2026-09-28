@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.AspNetCore.Identity;using Microsoft.AspNetCore.RateLimiting;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;using OneBox.Api.Data;using OneBox.Api.Models;using OneBox.Api.Security;
+using Microsoft.AspNetCore.Identity;using Microsoft.AspNetCore.RateLimiting;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;using OneBox.Api.Data;using OneBox.Api.Models;using OneBox.Api.Security;using OneBox.Api.Services;
 namespace OneBox.Api.Controllers;
 [ApiController,Route("api/auth"),EnableRateLimiting("auth")]
 public sealed class AuthController(OneBoxDb db,IPasswordHasher<AppUser> hasher,IConfiguration cfg,OtpDeliveryService otpDelivery):ControllerBase{
