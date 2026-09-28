@@ -118,10 +118,12 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
         return "{}";
     }
 
-    private static string ExtractMovieTitle(string details){var m=System.Text.RegularExpressions.Regex.Match(details, @"\b(?:for|called|named)\s+(.+)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);return m.Success?m.Groups[1].Value.Trim():details.Replace("book me a movie ticket","",StringComparison.OrdinalIgnoreCase).Trim();}\n\n    private static AgentPlan Heuristic(string m)
+    private static string ExtractMovieTitle(string details){var m=System.Text.RegularExpressions.Regex.Match(details, @"\b(?:for|called|named)\s+(.+)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);return m.Success?m.Groups[1].Value.Trim():details.Replace("book me a movie ticket","",StringComparison.OrdinalIgnoreCase).Trim();}
+
+    private static AgentPlan Heuristic(string m)
     {
         var s = m.ToLowerInvariant();
-        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\b(for|called|named)\s+\\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }
+        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\b(for|called|named)\s+\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }
         if (s.Contains("hospital") || s.Contains("doctor") || s.Contains("clinic")) return new("HOSPITAL_APPOINTMENT", "Hospital appointment", true, "", "evening", "near me", m);
         if (s.Contains("restaurant") || s.Contains("table") || s.Contains("dinner")) return new("RESTAURANT_BOOKING", "Restaurant booking", true, "", "", "near me", m);
         if (s.Contains("return") && s.Contains("order")) return new("SHOPPING_RETURN", "Return an order", true, "", "", "", m);
