@@ -85,7 +85,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Book this movie when tickets open"}')
+          R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Book Avatar when tickets open"}')
           printf "SCHEDULE_RESPONSE=%s\n" "$R"
           echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("status")=="WAITING",d; r=d.get("result") or {}; assert r.get("triggerType")=="SLOT",d; assert r.get("scheduledTaskId"),d'
           SID=$(printf '%s' "$R" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["scheduledTaskId"])')
