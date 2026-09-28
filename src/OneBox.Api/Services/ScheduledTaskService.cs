@@ -27,6 +27,17 @@ public sealed class ScheduledTaskService(OneBoxDb db)
         return task;
     }
 
+    public async Task<(OneTask Task,ScheduledTask Schedule)> CreateLinkedAsync(Guid userId, AgentPlan plan, string triggerType, DateTime? runAtUtc, string? conditionJson, CancellationToken ct)
+    {
+        var task=new OneTask{UserId=userId,Type=plan.Type,Title=plan.Title,Status="WAITING",RequiresConfirmation=true,PayloadJson=JsonSerializer.Serialize(plan)};
+        db.Tasks.Add(task);
+        var schedule=new ScheduledTask{UserId=userId,TaskId=task.Id,Type=plan.Type,Title=plan.Title,TriggerType=triggerType,RunAtUtc=runAtUtc,ConditionJson=conditionJson,PayloadJson=JsonSerializer.Serialize(plan),NextCheckAtUtc=runAtUtc??DateTime.UtcNow,Status="WAITING"};
+        db.ScheduledTasks.Add(schedule);
+        db.AuditEvents.Add(new AuditEvent{UserId=userId,TaskId=task.Id,EventType="SCHEDULED_TASK_CREATED",Detail=plan.Title});
+        await db.SaveChangesAsync(ct);
+        return (task,schedule);
+    }
+
     public async Task<bool> EvaluateAsync(ScheduledTask task, CancellationToken ct)
     {
         task.LastCheckedAtUtc = DateTime.UtcNow;
