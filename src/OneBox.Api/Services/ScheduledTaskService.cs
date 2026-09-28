@@ -66,6 +66,34 @@ public sealed class ScheduledTaskService(OneBoxDb db)
         task.ConditionJson = conditionJson;
         task.NextCheckAtUtc = DateTime.UtcNow;
         task.UpdatedAt = DateTime.UtcNow;
+
+        if (await EvaluateAsync(task, ct))
+        {
+            var now = DateTime.UtcNow;
+            task.Status = "CONDITION_MET";
+            task.NotificationStatus = "PENDING_CONFIRMATION";
+            task.NextCheckAtUtc = null;
+            task.UpdatedAt = now;
+
+            if (task.TaskId is Guid taskId)
+            {
+                var linked = await db.Tasks.SingleOrDefaultAsync(x => x.Id == taskId && x.UserId == userId, ct);
+                if (linked is not null)
+                {
+                    linked.Status = "AWAITING_CONFIRMATION";
+                    linked.UpdatedAt = now;
+                }
+            }
+
+            db.AuditEvents.Add(new AuditEvent
+            {
+                UserId = userId,
+                TaskId = task.TaskId,
+                EventType = "SCHEDULED_CONDITION_MET",
+                Detail = task.Title
+            });
+        }
+
         await db.SaveChangesAsync(ct);
     }
 }
