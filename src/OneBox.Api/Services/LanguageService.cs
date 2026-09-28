@@ -1,0 +1,38 @@
+namespace OneBox.Api.Services;
+public static class LanguageService
+{
+    public static string Detect(string text)
+    {
+        if (text.Any(c => c >= '\u0C80' && c <= '\u0CFF')) return "kn";
+        if (text.Any(c => c >= '\u0C00' && c <= '\u0C7F')) return "te";
+        if (text.Any(c => c >= '\u0B80' && c <= '\u0BFF')) return "ta";
+        if (text.Any(c => c >= '\u0D00' && c <= '\u0D7F')) return "ml";
+        if (text.Any(c => c >= '\u0900' && c <= '\u097F')) return "hi";
+        if (text.Any(c => c >= '\u0600' && c <= '\u06FF')) return "ur";
+        if (text.Any(c => c >= '\u0A00' && c <= '\u0A7F')) return "pa";
+        return "en";
+    }
+    public static string SameLanguageInstruction(string language) =>
+        language == "en" ? "Keep user-facing conversational text in the user's language." :
+        $"The user language is {language}. Keep all user-facing conversational text in that language.";
+    public static string Text(string key,string language) => (key,language) switch
+    {
+        ("confirm","kn") => "ನಾನು ಈ ಕಾರ್ಯವನ್ನು ಸಿದ್ಧಪಡಿಸಿದ್ದೇನೆ. ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಖಚಿತಪಡಿಸಿ. ಯಾವುದೇ ಅಂತಿಮ ಕ್ರಮವನ್ನು ಇನ್ನೂ ಮಾಡಲಾಗಿಲ್ಲ.",
+        ("confirm","te") => "నేను ఈ పనిని సిద్ధం చేశాను. వివరాలను పరిశీలించి నిర్ధారించండి. ఇంకా తుది చర్య చేయలేదు.",
+        ("confirm","ta") => "இந்த பணியை தயார் செய்துள்ளேன். விவரங்களை சரிபார்த்து உறுதிப்படுத்துங்கள். இறுதி நடவடிக்கை இன்னும் செய்யப்படவில்லை.",
+        ("confirm","ml") => "ഈ പ്രവർത്തനം ഞാൻ തയ്യാറാക്കി. വിവരങ്ങൾ പരിശോധിച്ച് സ്ഥിരീകരിക്കുക. അന്തിമ നടപടി ഇതുവരെ നടത്തിയിട്ടില്ല.",
+        ("confirm","hi") => "मैंने यह कार्य तैयार कर दिया है। विवरण जाँचकर पुष्टि करें। अभी कोई अंतिम कार्रवाई नहीं की गई है।",
+        ("confirm","ur") => "میں نے یہ کام تیار کر دیا ہے۔ تفصیلات چیک کرکے تصدیق کریں۔ ابھی کوئی حتمی کارروائی نہیں کی گئی۔",
+        ("confirm","pa") => "ਮੈਂ ਇਹ ਕੰਮ ਤਿਆਰ ਕਰ ਦਿੱਤਾ ਹੈ। ਵੇਰਵੇ ਜਾਂਚ ਕੇ ਪੁਸ਼ਟੀ ਕਰੋ। ਹਾਲੇ ਕੋਈ ਅੰਤਿਮ ਕਾਰਵਾਈ ਨਹੀਂ ਕੀਤੀ ਗਈ।",
+        ("confirm",_) => "I prepared the task. Review the exact provider, amount and action, then confirm. No irreversible action has happened.",
+        ("location","kn") => "ಹತ್ತಿರದ ಸೇವೆಗಳನ್ನು ಹುಡುಕಲು ನಿಮ್ಮ ಸ್ಥಳದ ಅನುಮತಿ ನೀಡಿ.",
+        ("location","te") => "సమీపంలోని సేవలను కనుగొనడానికి మీ లొకేషన్ అనుమతించండి.",
+        ("location","ta") => "அருகிலுள்ள சேவைகளைத் தேட உங்கள் இருப்பிட அனுமதியை வழங்குங்கள்.",
+        ("location","ml") => "സമീപ സേവനങ്ങൾ കണ്ടെത്താൻ നിങ്ങളുടെ ലൊക്കേഷൻ അനുമതി നൽകുക.",
+        ("location","hi") => "पास की सेवाएँ खोजने के लिए अपनी लोकेशन की अनुमति दें।",
+        ("location","ur") => "قریبی خدمات تلاش کرنے کے لیے اپنی لوکیشن کی اجازت دیں۔",
+        ("location","pa") => "ਨੇੜਲੀਆਂ ਸੇਵਾਵਾਂ ਲੱਭਣ ਲਈ ਆਪਣੀ ਲੋਕੇਸ਼ਨ ਦੀ ਇਜਾਜ਼ਤ ਦਿਓ।",
+        ("location",_) => "Allow location access before I search nearby providers.",
+        _ => key
+    };
+}
