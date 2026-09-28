@@ -85,6 +85,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8787/health | grep -q "onebox-local-agent"; then break; fi
+            sleep 2
+          done
           curl -fsS http://localhost:8787/health | grep -q "onebox-local-agent"
           docker compose exec -T agent node -e "const {chromium}=require('playwright'); (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage();await p.goto('http://web',{waitUntil:'domcontentloaded'});if(!(await p.locator('body').innerText()).includes('ONEBOX'))process.exit(1);await b.close()})()"
       - name: Test web
