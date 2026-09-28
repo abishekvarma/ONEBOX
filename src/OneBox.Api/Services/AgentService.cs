@@ -12,7 +12,9 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
     {
         var plan=await PlanAsync(message,ct);
         var task=await CreateTaskAsync(userId,plan,ct);
-        if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}\n        if(plan.Type=="MOVIE_BOOKING"){var title=ExtractMovieTitle(plan.Details);var options=await movies.SearchAsync(title,ct);if(options.Count>0){task.Status="OPTIONS_READY";task.ResultJson=JsonSerializer.Serialize(options);await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,$"I found {options.Count} movie matches. Choose the movie you want, then I’ll find nearby cinemas and showtimes.",plan,options);} }\n        if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,"I prepared the task. Review the exact provider, amount and action, then confirm. No irreversible action has happened.",plan,null);}
+        if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}
+        if(plan.Type=="MOVIE_BOOKING"){var title=ExtractMovieTitle(plan.Details);var options=await movies.SearchAsync(title,ct);if(options.Count>0){task.Status="OPTIONS_READY";task.ResultJson=JsonSerializer.Serialize(options);await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,$"I found {options.Count} movie matches. Choose the movie you want, then I’ll find nearby cinemas and showtimes.",plan,options);} }
+        if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,"I prepared the task. Review the exact provider, amount and action, then confirm. No irreversible action has happened.",plan,null);}
         return await ConfirmAsync(userId,task.Id,ct);
     }
 
@@ -116,10 +118,11 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
         return "{}";
     }
 
-    private static string ExtractMovieTitle(string details){var m=System.Text.RegularExpressions.Regex.Match(details, @"\\b(?:for|called|named)\\s+(.+)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);return m.Success?m.Groups[1].Value.Trim():details.Replace("book me a movie ticket","",StringComparison.OrdinalIgnoreCase).Trim();}\n\n    private static AgentPlan Heuristic(string m)
+    private static string ExtractMovieTitle(string details){var m=System.Text.RegularExpressions.Regex.Match(details, @"\b(?:for|called|named)\s+(.+)$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);return m.Success?m.Groups[1].Value.Trim():details.Replace("book me a movie ticket","",StringComparison.OrdinalIgnoreCase).Trim();}\n\n    private static AgentPlan Heuristic(string m)
     {
         var s = m.ToLowerInvariant();
-        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\\b(for|called|named)\\s+\\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }\n        if (s.Contains("hospital") || s.Contains("doctor") || s.Contains("clinic")) return new("HOSPITAL_APPOINTMENT", "Hospital appointment", true, "", "evening", "near me", m);
+        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\b(for|called|named)\s+\\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }
+        if (s.Contains("hospital") || s.Contains("doctor") || s.Contains("clinic")) return new("HOSPITAL_APPOINTMENT", "Hospital appointment", true, "", "evening", "near me", m);
         if (s.Contains("restaurant") || s.Contains("table") || s.Contains("dinner")) return new("RESTAURANT_BOOKING", "Restaurant booking", true, "", "", "near me", m);
         if (s.Contains("return") && s.Contains("order")) return new("SHOPPING_RETURN", "Return an order", true, "", "", "", m);
         if (s.Contains("bill") && s.Contains("pay")) return new("BILL_PAYMENT", "Pay a bill", true, "", "", "", m);
