@@ -60,4 +60,4 @@ const server=http.createServer((req,res)=>{
   if(req.method!=='POST'||!['/prepare','/execute'].includes(req.url))return fail(res,404,'Not found');
   let body='';req.on('data',c=>body+=c);req.on('end',async()=>{try{const p=JSON.parse(body);if(req.url==='/prepare'){if(!p.goal||!p.startUrl)throw new Error('goal and startUrl are required');return ok(res,await prepare(p.goal,p.startUrl));}if(req.url==='/execute'){if(!p.plan)throw new Error('plan is required');return ok(res,await execute(p.plan,p.finalConfirm===true));}}catch(e){fail(res,400,e.message)}});
 });
-server.listen(PORT,'127.0.0.1',()=>console.log(`ONEBOX local agent listening on http://127.0.0.1:${PORT}`));
+server.listen(PORT,'0.0.0.0',()=>console.log(`ONEBOX local agent listening on http://0.0.0.0:${PORT}`));
