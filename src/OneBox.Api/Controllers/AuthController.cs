@@ -19,11 +19,11 @@ public sealed class AuthController(OneBoxDb db,IPasswordHasher<AppUser> hasher,I
   if(u.OtpExpiresAt is null||u.OtpExpiresAt<DateTime.UtcNow)return BadRequest(new{message="OTP expired. Request a new OTP."});
   if(u.OtpAttempts>=5)return BadRequest(new{message="Too many OTP attempts. Request a new OTP."});
   u.OtpAttempts++;if(!VerifyOtpHash(u.OtpHash,r.Otp)){await db.SaveChangesAsync(ct);return BadRequest(new{message="Invalid OTP."});}
-  u.PhoneVerified=true;u.OtpHash=null;u.OtpExpiresAt=null;u.OtpAttempts=0;await db.SaveChangesAsync(ct);return Ok(new{message="Mobile number verified. You can now log in."});
+  u.PhoneVerified=true;u.OtpHash=null;u.OtpExpiresAt=null;u.OtpAttempts=0;await db.SaveChangesAsync(ct);var token=Jwt.Create(u,cfg["Jwt:Key"]!);return Ok(new{message="Mobile number verified. You are now signed in.",token,user=Dto(u)});
  }
  [HttpPost("resend-otp")]public async Task<IActionResult> ResendOtp(ResendOtpRequest r,CancellationToken ct){
   var email=r.Email.Trim().ToLowerInvariant();var u=await db.Users.SingleOrDefaultAsync(x=>x.Email==email,ct);if(u is null)return Ok(new{message="If the account exists, a new OTP has been requested."});
-  if(u.PhoneVerified)return Ok(new{message="Mobile number already verified."});IssueOtp(u);await db.SaveChangesAsync(ct);return Ok(new{message="If the account exists, a new OTP has been requested."});
+  if(u.PhoneVerified)return Ok(new{message="Mobile number already verified."});IssueOtp(u);await db.SaveChangesAsync(ct);var response=new{message="If the account exists, a new OTP has been requested."};if(cfg.GetValue<bool>("Security:ExposeOtpInDevelopment")&&!builderEnvironmentIsProduction())return Ok(new{response,developmentOtp=GetDevelopmentOtp(u)});return Ok(response);
  }
  [HttpPost("login")]public async Task<IActionResult> Login(LoginRequest r,CancellationToken ct){
   var u=await db.Users.SingleOrDefaultAsync(x=>x.Email==r.Email.Trim().ToLowerInvariant(),ct);if(u is null||hasher.VerifyHashedPassword(u,u.PasswordHash,r.Password)==PasswordVerificationResult.Failed)return Unauthorized(new{message="Invalid email or password."});
