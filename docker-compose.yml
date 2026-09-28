@@ -44,10 +44,12 @@ services:
     volumes: ["onebox_browser:/data/browser"]
 
   web:
-    build: ./src/OneBox.Web
-    environment:
-      VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:5080}
-      VITE_ONEBOX_AGENT_URL: ${PUBLIC_AGENT_URL:-http://127.0.0.1:8787}
+    build:
+      context: ./src/OneBox.Web
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:5080}
+        VITE_ONEBOX_AGENT_URL: ${PUBLIC_AGENT_URL:-http://127.0.0.1:8787}
+        VITE_GOOGLE_MAPS_API_KEY: ${GOOGLE_API_KEY}
     ports: ["5173:80"]
     depends_on: [api,agent]
 
