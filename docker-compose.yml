@@ -36,6 +36,10 @@ services:
       Payments__phonepe__WebhookSecret: ${PAYMENTS_PHONEPE_WEBHOOK_SECRET}
       Payments__razorpay__CheckoutUrl: ${PAYMENTS_RAZORPAY_CHECKOUT_URL}
       Payments__razorpay__WebhookSecret: ${PAYMENTS_RAZORPAY_WEBHOOK_SECRET}
+      Payments__PlatformFee: ${PAYMENTS_PLATFORM_FEE:-20}
+      Payments__PlatformFeePercent: ${PAYMENTS_PLATFORM_FEE_PERCENT:-10}
+      Payments__PlatformFeeMinimum: ${PAYMENTS_PLATFORM_FEE_MINIMUM:-0}
+      Payments__PlatformFeeMaximum: ${PAYMENTS_PLATFORM_FEE_MAXIMUM:-99}
       Admin__Emails: ${ADMIN_EMAILS}
     ports: ["5080:8080"]
     depends_on:
