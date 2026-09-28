@@ -10,11 +10,11 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
 {
     public async Task<AgentResponse> RunAsync(Guid userId, string message, bool confirm, CancellationToken ct)
     {
-        var plan=await PlanAsync(message,ct);
+        var language=LanguageService.Detect(message);var plan=await PlanAsync(message,language,ct);
         var task=await CreateTaskAsync(userId,plan,ct);
         if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}
         if(plan.Type=="MOVIE_BOOKING"){var title=ExtractMovieTitle(plan.Details);var options=await movies.SearchAsync(title,ct);if(options.Count>0){task.Status="OPTIONS_READY";task.ResultJson=JsonSerializer.Serialize(options);await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,$"I found {options.Count} movie matches. Choose the movie you want, then I’ll find nearby cinemas and showtimes.",plan,options);} }
-        if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,"I prepared the task. Review the exact provider, amount and action, then confirm. No irreversible action has happened.",plan,null);}
+        if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,LanguageService.Text("confirm",language),plan,null);}
         return await ConfirmAsync(userId,task.Id,ct);
     }
 
@@ -91,7 +91,7 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
         return new(false,"CONNECTOR_REQUIRED","No authorized provider connector is configured for this workflow. ONEBOX stopped safely instead of fabricating a completion.",null,null,null,0);
     }
 
-    private async Task<AgentPlan> PlanAsync(string message, CancellationToken ct)
+    private async Task<AgentPlan> PlanAsync(string message,string language, CancellationToken ct)
     {
         var key = cfg["AI:ApiKey"];
         if (string.IsNullOrWhiteSpace(key)) return Heuristic(message);
@@ -100,7 +100,7 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
             using var req = new HttpRequestMessage(HttpMethod.Post, cfg["AI:BaseUrl"] ?? "https://api.openai.com/v1/responses");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
             var schema = new { type = "json_schema", name = "onebox_task", strict = true, schema = new { type = "object", properties = new { type = new { type = "string", @enum = new[] { "HOSPITAL_APPOINTMENT", "RESTAURANT_BOOKING", "MOVIE_BOOKING", "TRAVEL_BOOKING", "PARCEL_BOOKING", "BILL_PAYMENT", "SHOPPING_RETURN", "GENERAL" } }, title = new { type = "string" }, needsConfirmation = new { type = "boolean" }, date = new { type = "string" }, time = new { type = "string" }, location = new { type = "string" }, details = new { type = "string" }, missingInput = new { type = "string" } }, required = new[] { "type", "title", "needsConfirmation", "date", "time", "location", "details", "missingInput" }, additionalProperties = false } };
-            var body = new { model = cfg["AI:Model"] ?? "gpt-5.6-luna", store = false, instructions = "You are ONEBOX, a task-execution planner. Never claim an external action is complete unless the backend connector reports a provider reference. Payments, bookings, purchases, cancellations and submissions require confirmation.", input = message, text = new { format = schema } };
+            var body = new { model = cfg["AI:Model"] ?? "gpt-5.6-luna", store = false, instructions = "You are ONEBOX, a task-execution planner. Never claim an external action is complete unless the backend connector reports a provider reference. Payments, bookings, purchases, cancellations and submissions require confirmation. " + LanguageService.SameLanguageInstruction(language), input = message, text = new { format = schema } };
             req.Content = JsonContent.Create(body);
             using var res = await clients.CreateClient().SendAsync(req, ct);
             if (!res.IsSuccessStatusCode) return Heuristic(message);
@@ -123,9 +123,9 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
     private static AgentPlan Heuristic(string m)
     {
         var s = m.ToLowerInvariant();
-        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\b(for|called|named)\s+\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }
-        if (s.Contains("hospital") || s.Contains("doctor") || s.Contains("clinic")) return new("HOSPITAL_APPOINTMENT", "Hospital appointment", true, "", "evening", "near me", m);
-        if (s.Contains("restaurant") || s.Contains("table") || s.Contains("dinner")) return new("RESTAURANT_BOOKING", "Restaurant booking", true, "", "", "near me", m);
+        if (s.Contains("movie") || s.Contains("cinema") || s.Contains("film") || s.Contains("ಚಿತ್ರ") || s.Contains("సినిమా") || s.Contains("படம்") || s.Contains("சினிமா") || s.Contains("സിനിമ") || s.Contains("फिल्म") || s.Contains("फिल्म")) { var hasTitle = System.Text.RegularExpressions.Regex.IsMatch(s, @"\b(for|called|named)\s+\S+"); return new("MOVIE_BOOKING", "Movie ticket", true, "", "evening", "near me", m, hasTitle ? null : "Which movie would you like to watch?"); }
+        if (s.Contains("hospital") || s.Contains("doctor") || s.Contains("clinic") || s.Contains("ಆಸ್ಪತ್ರೆ") || s.Contains("ಆಸ್ಪತ್ರ") || s.Contains("ఆసుపత్రి") || s.Contains("மருத்துவமனை") || s.Contains("ആശുപത്രി") || s.Contains("अस्पताल") || s.Contains("ہسپتال")) return new("HOSPITAL_APPOINTMENT", "Hospital appointment", true, "", "evening", "near me", m);
+        if (s.Contains("restaurant") || s.Contains("table") || s.Contains("dinner") || s.Contains("ರೆಸ್ಟೋರೆಂಟ್") || s.Contains("రెస్టారెంట్") || s.Contains("உணவகம்") || s.Contains("റെസ്റ്റോറന്റ്") || s.Contains("रेस्तरां")) return new("RESTAURANT_BOOKING", "Restaurant booking", true, "", "", "near me", m);
         if (s.Contains("return") && s.Contains("order")) return new("SHOPPING_RETURN", "Return an order", true, "", "", "", m);
         if (s.Contains("bill") && s.Contains("pay")) return new("BILL_PAYMENT", "Pay a bill", true, "", "", "", m);
         if (s.Contains("parcel") || s.Contains("courier")) return new("PARCEL_BOOKING", "Send a parcel", true, "", "", "", m);
