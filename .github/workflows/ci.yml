@@ -65,6 +65,12 @@ jobs:
           TOKEN=$(printf '%s' "$VERIFY" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
           echo "ONEBOX_CI_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $TOKEN" >/dev/null
+      - name: Test platform fee quote
+        shell: bash
+        run: |
+          set -euo pipefail
+          Q=$(curl -fsS -X POST http://localhost:5080/api/payments/quote -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"providerAmount":350}')
+          echo "$Q" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["providerAmount"]==350; assert d["platformFee"]==35; assert d["total"]==385'
       - name: Test task planning and sandbox execution
         shell: bash
         run: |
