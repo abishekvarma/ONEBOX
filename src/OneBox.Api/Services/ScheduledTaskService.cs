@@ -30,6 +30,8 @@ public sealed class ScheduledTaskService(OneBoxDb db)
     public async Task<(OneTask Task,ScheduledTask Schedule)> CreateLinkedAsync(Guid userId, AgentPlan plan, string triggerType, DateTime? runAtUtc, string? conditionJson, CancellationToken ct)
     {
         var task=new OneTask{UserId=userId,Type=plan.Type,Title=plan.Title,Status="WAITING",RequiresConfirmation=true,PayloadJson=JsonSerializer.Serialize(plan)};
+        var names = new[] { "Understand request", "Plan task", "Find options", "Collect required details", "Request confirmation", "Execute action", "Verify result" };
+        for (var i = 0; i < names.Length; i++) task.Steps.Add(new TaskStep { TaskId = task.Id, StepOrder = i + 1, Name = names[i], Status = i == 0 ? "COMPLETED" : "PENDING" });
         db.Tasks.Add(task);
         var schedule=new ScheduledTask{UserId=userId,TaskId=task.Id,Type=plan.Type,Title=plan.Title,TriggerType=triggerType,RunAtUtc=runAtUtc,ConditionJson=conditionJson,PayloadJson=JsonSerializer.Serialize(plan),NextCheckAtUtc=runAtUtc??DateTime.UtcNow,Status="WAITING"};
         db.ScheduledTasks.Add(schedule);
@@ -66,6 +68,34 @@ public sealed class ScheduledTaskService(OneBoxDb db)
         task.ConditionJson = conditionJson;
         task.NextCheckAtUtc = DateTime.UtcNow;
         task.UpdatedAt = DateTime.UtcNow;
+
+        if (await EvaluateAsync(task, ct))
+        {
+            var now = DateTime.UtcNow;
+            task.Status = "CONDITION_MET";
+            task.NotificationStatus = "PENDING_CONFIRMATION";
+            task.NextCheckAtUtc = null;
+            task.UpdatedAt = now;
+
+            if (task.TaskId is Guid taskId)
+            {
+                var linked = await db.Tasks.SingleOrDefaultAsync(x => x.Id == taskId && x.UserId == userId, ct);
+                if (linked is not null)
+                {
+                    linked.Status = "AWAITING_CONFIRMATION";
+                    linked.UpdatedAt = now;
+                }
+            }
+
+            db.AuditEvents.Add(new AuditEvent
+            {
+                UserId = userId,
+                TaskId = task.TaskId,
+                EventType = "SCHEDULED_CONDITION_MET",
+                Detail = task.Title
+            });
+        }
+
         await db.SaveChangesAsync(ct);
     }
 }

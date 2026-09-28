@@ -12,13 +12,13 @@ public sealed class AgentService(OneBoxDb db, IHttpClientFactory clients, IConfi
     {
         var language=LanguageService.Detect(message);var plan=await PlanAsync(message,language,ct);
         var task=await CreateTaskAsync(userId,plan,ct);
-        if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}
         if(TryBuildSchedule(message,out var trigger,out var runAt,out var condition)){
             db.Tasks.Remove(task);
             var linked=await scheduler.CreateLinkedAsync(userId,plan,trigger,runAt,condition,ct);
             var notice=trigger=="PRICE"?"I’ll watch the price and stop for your confirmation when it reaches your limit.":trigger=="SLOT"?"I’ll watch for the slot/tickets to open and stop for your confirmation when they do.":"I’ll wait until the scheduled time, then ask for your confirmation before executing.";
             return new(linked.Task.Id,"WAITING",false,notice,plan,new{scheduledTaskId=linked.Schedule.Id,triggerType=trigger});
         }
+        if(!string.IsNullOrWhiteSpace(plan.MissingInput)){task.Status="AWAITING_INPUT";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,plan.MissingInput,plan,null);}
         if(plan.Type=="MOVIE_BOOKING"){var title=ExtractMovieTitle(plan.Details);var options=await movies.SearchAsync(title,ct);if(options.Count>0){task.Status="OPTIONS_READY";task.ResultJson=JsonSerializer.Serialize(options);await db.SaveChangesAsync(ct);return new(task.Id,task.Status,false,$"I found {options.Count} movie matches. Choose the movie you want, then I’ll find nearby cinemas and showtimes.",plan,options);} }
         if(plan.NeedsConfirmation && !confirm){task.Status="AWAITING_CONFIRMATION";await db.SaveChangesAsync(ct);return new(task.Id,task.Status,true,LanguageService.Text("confirm",language),plan,null);}
         return await ConfirmAsync(userId,task.Id,ct);

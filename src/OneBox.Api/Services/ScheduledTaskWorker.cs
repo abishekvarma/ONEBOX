@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OneBox.Api.Data;
+using OneBox.Api.Models;
 
 namespace OneBox.Api.Services;
 
@@ -21,10 +22,19 @@ public sealed class ScheduledTaskWorker(IServiceScopeFactory scopes,ILogger<Sche
                     if(await scheduler.EvaluateAsync(task,stoppingToken))
                     {
                         task.Status="CONDITION_MET";
-                        task.NotificationStatus="PENDING";
+                        task.NotificationStatus="PENDING_CONFIRMATION";
                         task.NextCheckAtUtc=null;
                         task.UpdatedAt=now;
-                        db.AuditEvents.Add(new OneBox.Api.Models.AuditEvent{UserId=task.UserId,EventType="SCHEDULED_CONDITION_MET",Detail=task.Title});
+                        if(task.TaskId is Guid taskId)
+                        {
+                            var linked=await db.Tasks.SingleOrDefaultAsync(x=>x.Id==taskId && x.UserId==task.UserId,stoppingToken);
+                            if(linked is not null)
+                            {
+                                linked.Status="AWAITING_CONFIRMATION";
+                                linked.UpdatedAt=now;
+                            }
+                        }
+                        db.AuditEvents.Add(new AuditEvent{UserId=task.UserId,TaskId=task.TaskId,EventType="SCHEDULED_CONDITION_MET",Detail=task.Title});
                     }
                     else
                     {
