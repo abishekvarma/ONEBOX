@@ -1,0 +1,42 @@
+name: ONEBOX CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MYSQL_DATABASE: onebox
+      MYSQL_USER: onebox
+      MYSQL_PASSWORD: ci_password
+      MYSQL_ROOT_PASSWORD: ci_root_password
+      JWT_KEY: ci-jwt-key-must-be-at-least-32-characters-long
+      ONEBOX_AGENT_SECRET: ci-agent-secret
+      ONEBOX_EXECUTION_MODE: sandbox
+      EXPOSE_OTP_IN_DEVELOPMENT: "false"
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: gpt-5.6-luna
+      GOOGLE_API_KEY: ""
+      CORS_ORIGINS: http://localhost:5173
+      PUBLIC_API_URL: http://localhost:5080
+      PUBLIC_AGENT_URL: http://127.0.0.1:8787
+      PAYMENTS_PHONEPE_CHECKOUT_URL: ""
+      PAYMENTS_RAZORPAY_CHECKOUT_URL: ""
+      PAYMENTS_PHONEPE_WEBHOOK_SECRET: ""
+      PAYMENTS_RAZORPAY_WEBHOOK_SECRET: ""
+      ADMIN_EMAILS: ""
+      ONEBOX_ALLOWED_HOSTS: in.bookmyshow.com,bookmyshow.com,www.irctc.co.in,irctc.co.in,contents.irctc.co.in,www.google.com,google.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose
+        run: docker compose config -q
+      - name: Build API
+        run: docker compose build api
+      - name: Build web
+        run: docker compose build web
+      - name: Build browser agent
+        run: docker compose build agent
