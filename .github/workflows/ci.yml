@@ -64,7 +64,7 @@ jobs:
           VERIFY=$(curl -fsS -X POST http://localhost:5080/api/auth/verify-otp             -H 'Content-Type: application/json'             -d "{\"email\":\"$EMAIL\",\"otp\":\"$OTP\"}")
           TOKEN=$(printf '%s' "$VERIFY" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
           echo "ONEBOX_CI_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-          curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $TOKEN" >/dev/null
+          curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $ONEBOX_CI_TOKEN" >/dev/null
       - name: Test platform fee quote
         shell: bash
         run: |
@@ -75,11 +75,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"message":"book me a movie ticket"}')
+          R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"book me a movie ticket"}')
           echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="AWAITING_INPUT"'
-          R2=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"message":"book me a movie ticket for Avatar"}')
+          R2=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"book me a movie ticket for Avatar"}')
           TASK=$(printf '%s' "$R2" | python -c 'import json,sys; print(json.load(sys.stdin)["taskId"])')
-          R3=$(curl -fsS -X POST "http://localhost:5080/api/tasks/$TASK/confirm" -H "Authorization: Bearer $TOKEN")
+          R3=$(curl -fsS -X POST "http://localhost:5080/api/tasks/$TASK/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$R3" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED"'
       - name: Test browser agent
         shell: bash
