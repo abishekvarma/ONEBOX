@@ -32,12 +32,14 @@ The software cannot invent credentials belonging to Google, OpenAI, hospitals, r
 A provider is only marked completed when its connector returns a provider result. Sandbox mode is explicitly labelled and never represents a real booking. Live mode requires an authorized provider connector or the local authenticated-browser agent. ONEBOX never fabricates a live booking confirmation.
 
 ## Run
-1. Copy `.env.example` to `.env` and set `JWT_KEY` and `OPENAI_API_KEY`.
-2. If using nearby search/maps, set `GOOGLE_MAPS_API_KEY` with the required Google Maps/Places APIs enabled.
-3. `docker compose up --build`
-4. Open `http://localhost:5173`
-5. API health: `http://localhost:8080/health`
-6. Swagger: `http://localhost:8080/swagger`
+1. Copy `.env.example` to `.env` and set strong `JWT_KEY` and `ONEBOX_AGENT_SECRET` values.
+2. Set `EXPOSE_OTP_IN_DEVELOPMENT=true` only for local development; keep it `false` for deployment.
+3. Set `OPENAI_API_KEY` for AI planning and `GOOGLE_API_KEY` for nearby Places search/maps.
+4. For deployment, set `PUBLIC_API_URL`, `PUBLIC_AGENT_URL`, and `CORS_ORIGINS` to the public HTTPS origins before building the web image.
+5. `docker compose up --build`
+6. Open `http://localhost:5173`
+7. API health: `http://localhost:5080/health`
+8. Swagger: `http://localhost:5080/swagger`
 
 For a cloud deployment, build the API image and web image separately and use a managed MySQL instance.
 
@@ -54,9 +56,9 @@ The important architectural change in this version is the **Local Execution Agen
 
 ### Execution architecture
 
-`React Web -> .NET 10 API -> AI task planner -> confirmation -> Local Browser Agent -> user's visible Chromium session -> provider -> result`
+`React Web -> .NET 10 API -> AI task planner -> confirmation -> Browser Agent -> provider -> result`
 
-The local agent can inspect the live provider DOM and build a constrained browser action plan. It does not accept arbitrary JavaScript. It stops before irreversible actions and requires a second explicit confirmation before execution.
+The browser agent runs a persistent Playwright Chromium session in its configured runtime, inspects the live provider DOM and builds a constrained browser action plan. It does not accept arbitrary JavaScript. It stops before irreversible actions and requires a second explicit confirmation before execution.
 
 ### What is genuinely implemented
 
@@ -65,7 +67,7 @@ The local agent can inspect the live provider DOM and build a constrained browse
 - AI task planning with structured output
 - live Google Places nearby search
 - task state machine and audit records
-- local browser execution agent using Playwright
+- browser execution agent using Playwright
 - provider-domain allowlist
 - live DOM-based browser action planning
 - explicit confirmation before sensitive execution
@@ -74,7 +76,7 @@ The local agent can inspect the live provider DOM and build a constrained browse
 
 ### Important production requirement
 
-There is no universal consumer API for every hospital, restaurant, marketplace, courier, bank/utility biller, airline and retailer. ONEBOX therefore supports two real integration modes: authorized provider APIs/OAuth where available, and local browser execution for services where the user is already authenticated. Provider-specific DOMs and anti-bot policies can change, so each production provider should be tested and maintained as a recipe/connector.
+There is no universal consumer API for every hospital, restaurant, marketplace, courier, bank/utility biller, airline and retailer. ONEBOX therefore supports two real integration modes: authorized provider APIs/OAuth where available, and browser execution for services where the agent runtime has an authorized authenticated session. Provider-specific DOMs and anti-bot policies can change, so each production provider should be tested and maintained as a recipe/connector.
 
 
 ## Investor-grade acceptance rules
@@ -83,7 +85,7 @@ ONEBOX is not declared production-complete merely because the UI loads. A workfl
 
 1. The user request creates exactly one task.
 2. Confirmation acts on that same task; it never creates a duplicate.
-3. The provider action is executed through an authorized API/OAuth integration or the user's authenticated browser.
+3. The provider action is executed through an authorized API/OAuth integration or an authorized authenticated browser session available to the agent runtime.
 4. The provider returns a verifiable result/reference.
 5. Payment is represented as a separate transaction with provider amount, ONEBOX fee, total, and external status.
 6. A payment-success/booking-failure combination enters `RECOVERY_REQUIRED` rather than being reported as success.
