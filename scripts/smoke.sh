@@ -10,7 +10,9 @@ curl -fsS "$API/health" | grep -q '"status":"ok"'
 
 echo '[2/6] Register'
 REG=$(curl -fsS -X POST "$API/api/auth/register" -H 'Content-Type: application/json' -d "{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"phone\":\"9999999999\"}")
-TOKEN=$(printf '%s' "$REG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+OTP=$(printf '%s' "$REG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["developmentOtp"])")
+VERIFY=$(curl -fsS -X POST "$API/api/auth/verify-otp" -H 'Content-Type: application/json' -d "{"email":"$EMAIL","otp":"$OTP"}")
+TOKEN=$(printf '%s' "$VERIFY" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
 AUTH="Authorization: Bearer $TOKEN"
 
 echo '[3/6] Create task (must await confirmation)'
