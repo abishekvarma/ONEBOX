@@ -99,7 +99,7 @@ jobs:
           L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           printf "SCHEDULED_TASKS=%s\n" "$L"
           echo "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=next(x for x in d if x["id"]==sys.argv[1]); assert s["status"]=="CONDITION_MET",s; assert s["notificationStatus"]=="PENDING_CONFIRMATION",s' "$SCHEDULED_TASK_ID"
-          C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SCHEDULED_TASK_ID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           printf "CONFIRM_RESPONSE=%s\n" "$C"
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED", d'
 
