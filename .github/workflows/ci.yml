@@ -40,3 +40,31 @@ jobs:
         run: docker compose build web
       - name: Build browser agent
         run: docker compose build agent
+      - name: Start integration stack
+        env:
+          EXPOSE_OTP_IN_DEVELOPMENT: "true"
+        run: docker compose up -d mysql api web agent
+      - name: Wait for API
+        shell: bash
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5080/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs api mysql
+          exit 1
+      - name: Test registration and OTP verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          EMAIL="ci-$GITHUB_RUN_ID@example.com"
+          REGISTER=$(curl -fsS -X POST http://localhost:5080/api/auth/register             -H 'Content-Type: application/json'             -d "{\"name\":\"CI Test\",\"email\":\"$EMAIL\",\"password\":\"TestPassword123!\",\"phone\":\"9999999999\"}")
+          OTP=$(printf '%s' "$REGISTER" | python -c 'import json,sys; print(json.load(sys.stdin)["developmentOtp"])')
+          VERIFY=$(curl -fsS -X POST http://localhost:5080/api/auth/verify-otp             -H 'Content-Type: application/json'             -d "{\"email\":\"$EMAIL\",\"otp\":\"$OTP\"}")
+          TOKEN=$(printf '%s' "$VERIFY" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $TOKEN" >/dev/null
+      - name: Test web
+        run: curl -fsS http://localhost:5173/ | grep -q "ONEBOX"
+      - name: Stop integration stack
+        if: always()
+        run: docker compose down -v
