@@ -64,7 +64,7 @@ jobs:
           VERIFY=$(curl -fsS -X POST http://localhost:5080/api/auth/verify-otp             -H 'Content-Type: application/json'             -d "{\"email\":\"$EMAIL\",\"otp\":\"$OTP\"}")
           TOKEN=$(printf '%s' "$VERIFY" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
           echo "ONEBOX_CI_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-          curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $ONEBOX_CI_TOKEN" >/dev/null
+          curl -fsS http://localhost:5080/api/me -H "Authorization: Bearer $TOKEN" >/dev/null
       - name: Test platform fee quote
         shell: bash
         run: |
