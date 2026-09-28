@@ -86,7 +86,8 @@ jobs:
         run: |
           set -euo pipefail
           R=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Book this movie when tickets open"}')
-          echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING"; assert d["result"]["triggerType"]=="SLOT"'
+          printf "SCHEDULE_RESPONSE=%s\n" "$R"
+          echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING", d; assert d["result"]["triggerType"]=="SLOT", d'
           SID=$(printf '%s' "$R" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["scheduledTaskId"])')
           curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/observation" -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"available":true}' >/dev/null
           L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
@@ -94,7 +95,8 @@ jobs:
           C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED"'
           P=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Buy this phone if it goes below ₹55000"}')
-          echo "$P" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING"; assert d["result"]["triggerType"]=="PRICE"'
+          printf "PRICE_RESPONSE=%s\n" "$P"
+          echo "$P" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING", d; assert d["result"]["triggerType"]=="PRICE", d'
       - name: Test browser agent
         shell: bash
         run: |
