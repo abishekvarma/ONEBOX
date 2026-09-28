@@ -24,7 +24,8 @@ async function submit(){
 async function verifyOtp(){
  try{
   setError('');setMessage('');
-  await api('/api/auth/verify-otp',{method:'POST',body:JSON.stringify({email,otp})});
+  const d=await api('/api/auth/verify-otp',{method:'POST',body:JSON.stringify({email,otp})});
+  if(d.token){localStorage.setItem('onebox_token',d.token);localStorage.setItem('onebox_user',JSON.stringify(d.user));n('/');return;}
   setMessage('Mobile number verified successfully. You can now sign in.');
   setOtpMode(false);
   setSignup(false);
