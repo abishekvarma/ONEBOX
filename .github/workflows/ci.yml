@@ -89,12 +89,8 @@ jobs:
           echo "$R" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="WAITING"; assert d["result"]["triggerType"]=="SLOT"'
           SID=$(printf '%s' "$R" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["scheduledTaskId"])')
           curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/observation" -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"available":true}' >/dev/null
-          for i in {1..10}; do
-            L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
-            if printf '%s' "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x["id"]=="'$SID'"][0]; assert s["status"]=="CONDITION_MET"' 2>/dev/null; then break; fi
-            sleep 2
-          done
-          printf '%s' "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x["id"]=="'$SID'"][0]; assert s["status"]=="CONDITION_MET"'
+          L=$(curl -fsS http://localhost:5080/api/scheduled-tasks -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$L" | python -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x["id"]=="'$SID'"][0]; assert s["status"]=="CONDITION_MET"; assert s["notificationStatus"]=="PENDING_CONFIRMATION"'
           C=$(curl -fsS -X POST "http://localhost:5080/api/scheduled-tasks/$SID/confirm" -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="COMPLETED"'
           P=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"Buy this phone if it goes below ₹55000"}')
