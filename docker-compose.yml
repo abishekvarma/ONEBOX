@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports: ["3307:3306"]
+    volumes: ["onebox_mysql:/var/lib/mysql"]
+
+  api:
+    build: ./src/OneBox.Api
+    environment:
+      ConnectionStrings__Default: Server=mysql;Port=3306;Database=${MYSQL_DATABASE};User=${MYSQL_USER};Password=${MYSQL_PASSWORD};
+      Jwt__Key: ${JWT_KEY}
+      Execution__LocalAgentUrl: http://agent:8787
+      Execution__AgentSharedSecret: ${ONEBOX_AGENT_SECRET}
+      Execution__Mode: ${ONEBOX_EXECUTION_MODE}
+      Payments__phonepe__CheckoutUrl: ${PAYMENTS_PHONEPE_CHECKOUT_URL}
+      Payments__phonepe__WebhookSecret: ${PAYMENTS_PHONEPE_WEBHOOK_SECRET}
+      Payments__razorpay__CheckoutUrl: ${PAYMENTS_RAZORPAY_CHECKOUT_URL}
+      Payments__razorpay__WebhookSecret: ${PAYMENTS_RAZORPAY_WEBHOOK_SECRET}
+      Admin__Emails: ${ADMIN_EMAILS}
+    ports: ["5080:8080"]
+    depends_on: [mysql]
+
+  agent:
+    build: ./src/OneBox.Agent
+    environment:
+      PORT: 8787
+      ONEBOX_AGENT_SECRET: ${ONEBOX_AGENT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      OPENAI_BASE_URL: https://api.openai.com/v1/responses
+      ONEBOX_ALLOWED_HOSTS: ${ONEBOX_ALLOWED_HOSTS}
+      ONEBOX_BROWSER_DATA_DIR: /data/browser
+    ports: ["8787:8787"]
+    volumes: ["onebox_browser:/data/browser"]
+
+  web:
+    build: ./src/OneBox.Web
+    environment:
+      VITE_API_URL: http://localhost:5080
+      VITE_ONEBOX_AGENT_URL: http://127.0.0.1:8787
+    ports: ["5173:80"]
+    depends_on: [api,agent]
+
+volumes:
+  onebox_mysql:
+  onebox_browser:

@@ -1,0 +1,6 @@
+using System.Text.Json;using OneBox.Api.Models;
+namespace OneBox.Api.Services;
+public interface ITaskConnector{string Type{get;}Task<ConnectorResult> ExecuteAsync(AppUser user,OneTask task,JsonElement payload,CancellationToken ct);}
+public sealed class ConnectorRegistry(IEnumerable<ITaskConnector> connectors){private readonly Dictionary<string,ITaskConnector> map=connectors.ToDictionary(x=>x.Type,StringComparer.OrdinalIgnoreCase);public bool TryGet(string type,out ITaskConnector? connector)=>map.TryGetValue(type,out connector);}
+
+public sealed class SandboxConnector(string type):ITaskConnector{public string Type=>type;public Task<ConnectorResult> ExecuteAsync(AppUser user,OneTask task,JsonElement payload,CancellationToken ct){var reference=$"ONEBOX-DEMO-{DateTime.UtcNow:yyyyMMddHHmmss}-{task.Id.ToString()[..8].ToUpperInvariant()}";var amount=payload.TryGetProperty("amount",out var a)&&a.TryGetDecimal(out var d)?d:0;var scheduled=DateTime.UtcNow.AddHours(2);return Task.FromResult(new ConnectorResult(true,"EXECUTED","Sandbox execution completed with a deterministic provider receipt. Replace sandbox mode with an authorized provider connector before taking live money or making live bookings.",reference,$"https://sandbox.onebox.local/{type.ToLowerInvariant()}/{reference}",scheduled,amount));}}
