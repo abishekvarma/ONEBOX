@@ -87,7 +87,8 @@ jobs:
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["category"]=="RESTAURANT_BOOKING"; assert isinstance(d["items"],list)'
           T=$(curl -fsS -X POST http://localhost:5080/api/tasks/agent -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"message":"book a restaurant table"}')
           TASK=$(printf '%s' "$T" | python -c 'import json,sys; print(json.load(sys.stdin)["taskId"])')
-          S=$(curl -fsS -X POST http://localhost:5080/api/providers/select -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d "{"taskId":"$TASK","providerId":"ci-provider","providerName":"CI Restaurant","category":"RESTAURANT_BOOKING","distanceKm":2.1,"rating":4.5,"ratingCount":120,"priceLevel":"PRICE_LEVEL_MODERATE"}")
+          PAYLOAD=$(printf '{"taskId":"%s","providerId":"ci-provider","providerName":"CI Restaurant","category":"RESTAURANT_BOOKING","distanceKm":2.1,"rating":4.5,"ratingCount":120,"priceLevel":"PRICE_LEVEL_MODERATE"}' "$TASK")
+          S=$(curl -fsS -X POST http://localhost:5080/api/providers/select -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' --data-raw "$PAYLOAD")
           echo "$S" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["providerId"]=="ci-provider"; assert d["status"] in ("READY","AWAITING_CONFIRMATION","COMPLETED")'
       - name: Test task planning and sandbox execution
         shell: bash
