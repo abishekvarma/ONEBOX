@@ -85,16 +85,52 @@ function Chat(){
 }
 function Directory({type,title}){const[items,setItems]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState(''),[selected,setSelected]=useState(null),[slot,setSlot]=useState('');async function search(){setLoading(true);setError('');try{setItems(await api('/api/providers/nearby?category='+encodeURIComponent(type)))}catch(e){setError(e.message)}finally{setLoading(false)}}return <main className="page"><div className="pagehead"><div><span className="eyebrow">Live provider search</span><h2>{title}</h2></div><MapPin/></div><button className="primary full"onClick={search}disabled={loading}>{loading?'Finding live providers…':'Find available options'}</button>{error&&<div className="error">{error}</div>}{items.map(x=><div className="provider card"key={x.id}><div className="providericon">{type==='HOSPITAL_APPOINTMENT'?<Stethoscope/>:<Utensils/>}</div><div className="providerbody"><b>{x.name}</b><span>{x.address||'Address available from provider'} </span>{x.phone&&<small>{x.phone}</small>}<div className="slots">{x.slots.map(s=><button key={s}className={slot===s&&selected?.id===x.id?'slot selected':'slot'}onClick={()=>{setSelected(x);setSlot(s)}}>{s}</button>)}</div></div></div>)}{selected&&<div className="card stickyconfirm"><b>{selected.name}</b><span>{slot}</span><p>ONEBOX has the provider details and your saved profile. If this provider exposes an authorized booking link, ONEBOX can hand you to that provider without pretending the booking is complete.</p><button className="primary full"onClick={()=>selected.websiteUrl?window.open(selected.websiteUrl,'_blank','noopener,noreferrer'):alert('This provider did not return a booking website. No booking was submitted.')}>{selected.websiteUrl?'Open provider booking':'Provider booking unavailable'}</button></div>}</main>}
 function Generic({title,icon,prompt}){const n=useNavigate();return <main className="page"><div className="largeicon">{icon}</div><h2>{title}</h2><p className="muted">Tell ONEBOX what you need and it will prepare the task, ask for missing details, and require confirmation before sensitive actions.</p><button className="primary full"onClick={()=>n('/chat')}>Start with ONEBOX AI</button><div className="card example"><b>Try saying</b><p>“{prompt}.”</p></div></main>}
-function Tasks(){const[data,setData]=useState([]),[scheduled,setScheduled]=useState([]),[filter,setFilter]=useState('ALL'),[busy,setBusy]=useState(false);
- async function load(){try{const[a,b]=await Promise.all([api('/api/tasks'),api('/api/scheduled-tasks')]);setData(a);setScheduled(b)}catch{}}
- useEffect(()=>{load()},[]);
- async function cancel(id){setBusy(true);try{await api('/api/scheduled-tasks/'+id+'/cancel',{method:'POST'});await load()}finally{setBusy(false)}}
- async function confirm(id){setBusy(true);try{await api('/api/scheduled-tasks/'+id+'/confirm',{method:'POST'});await load()}catch(e){alert(e.message)}finally{setBusy(false)}}
- const filtered=data.filter(t=>filter==='ALL'||(filter==='RUNNING'&&!['COMPLETED','BLOCKED'].includes(t.status))||(filter==='COMPLETED'&&t.status==='COMPLETED'));
- return <main className="page"><div className="pagehead"><div><span className="eyebrow">ONEBOX automation</span><h2>Tasks</h2></div><CalendarDays/></div>
- <div className="card example scheduleintro"><b>Let ONEBOX wait for the right moment.</b><p>“Book this movie when tickets open.” · “Buy this phone if it drops below ₹55,000.”</p></div>
- {scheduled.length>0&&<><div className="sectionhead"><h3>Scheduled & conditional</h3><button onClick={load}>Refresh</button></div><div className="scheduledlist">{scheduled.map(t=><div className="card scheduledcard"key={t.id}><div className="scheduledicon">{t.triggerType==='PRICE'?<WalletCards/>:t.triggerType==='SLOT'?<Bell/>:<Clock3/>}</div><div className="scheduledbody"><b>{t.title}</b><span>{t.type.replaceAll('_',' ')} · {t.triggerType} trigger</span><small>{t.status==='CONDITION_MET'?'Condition met — confirmation required.':t.status==='COMPLETED'?'Completed.':t.runAtUtc?'Runs '+new Date(t.runAtUtc).toLocaleString():'Watching automatically'}</small></div>{t.status==='CONDITION_MET'&&<button className="primary smallbtn"disabled={busy}onClick={()=>confirm(t.id)}>Confirm</button>}{!['COMPLETED','CANCELLED','CONDITION_MET'].includes(t.status)&&<button className="secondary smallbtn"disabled={busy}onClick={()=>cancel(t.id)}>Cancel</button>}</div>)}</div></>}
- <div className="sectionhead"><h3>Task history</h3></div><div className="tabs"><button className={filter==='ALL'?'active':''}onClick={()=>setFilter('ALL')}>All</button><button className={filter==='RUNNING'?'active':''}onClick={()=>setFilter('RUNNING')}>In Progress</button><button className={filter==='COMPLETED'?'active':''}onClick={()=>setFilter('COMPLETED')}>Completed</button></div>{filtered.length?filtered.map(t=><div className="card task"key={t.id}><CheckCircle2/><div><b>{t.title}</b><span>{t.type.replaceAll('_',' ')}</span></div><em>{t.status}</em></div>):<div className="empty">No tasks yet.</div>}</main>}
+function Tasks(){
+ const[data,setData]=useState([]),[scheduled,setScheduled]=useState([]),[filter,setFilter]=useState('ALL'),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[toast,setToast]=useState(null),[lastChecked,setLastChecked]=useState(null),[notificationsEnabled,setNotificationsEnabled]=useState(typeof Notification!=='undefined'&&Notification.permission==='granted');
+ const seen=React.useRef(new Set());
+ async function load(silent=false){
+  try{
+   if(!silent)setLoading(true);
+   const[a,b]=await Promise.all([api('/api/tasks'),api('/api/scheduled-tasks')]);
+   const ready=b.filter(x=>x.status==='CONDITION_MET');
+   const fresh=ready.filter(x=>!seen.current.has(x.id));
+   fresh.forEach(x=>seen.current.add(x.id));
+   if(fresh.length){
+    const first=fresh[0];
+    setToast({id:first.id,title:first.title,message:'Condition met — your confirmation is required.'});
+    if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
+      fresh.slice(0,3).forEach(x=>new Notification('ONEBOX: action ready',{body:x.title+' is ready for your confirmation.'}));
+    }
+   }
+   b.forEach(x=>seen.current.add(x.id));
+   setData(a);setScheduled(b);setLastChecked(new Date());setError('');
+  }catch(e){setError(e.message||'Could not load tasks.')}
+  finally{if(!silent)setLoading(false)}
+ }
+ useEffect(()=>{load();const timer=setInterval(()=>load(true),10000);return()=>clearInterval(timer)},[]);
+ useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(null),7000);return()=>clearTimeout(t)},[toast]);
+ async function enableNotifications(){
+  if(typeof Notification==='undefined'){setToast({title:'Notifications unavailable',message:'Your browser does not support notifications.'});return}
+  const p=await Notification.requestPermission();
+  setNotificationsEnabled(p==='granted');
+  setToast(p==='granted'?{title:'Notifications enabled',message:'ONEBOX can alert you when a scheduled condition is met.'}:{title:'Notifications not enabled',message:'ONEBOX will still show alerts inside the Tasks page.'});
+ }
+ async function cancel(id){setBusy(true);try{await api('/api/scheduled-tasks/'+id+'/cancel',{method:'POST'});setToast({title:'Scheduled task cancelled',message:'ONEBOX will stop watching this task.'});await load(true)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function confirm(id){setBusy(true);try{const d=await api('/api/scheduled-tasks/'+id+'/confirm',{method:'POST'});setToast({title:'Confirmation sent',message:d.message||'ONEBOX continued the task.'});await load(true)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ const filtered=data.filter(t=>filter==='ALL'||(filter==='RUNNING'&&!['COMPLETED','BLOCKED','CANCELLED'].includes(t.status))||(filter==='COMPLETED'&&t.status==='COMPLETED'));
+ const scheduledFiltered=scheduled.filter(t=>filter==='ALL'||(filter==='RUNNING'&&!['COMPLETED','CANCELLED'].includes(t.status))||(filter==='COMPLETED'&&t.status==='COMPLETED'));
+ const readyCount=scheduled.filter(t=>t.status==='CONDITION_MET').length;
+ return <main className="page">
+  <div className="pagehead"><div><span className="eyebrow">ONEBOX automation</span><h2>Tasks</h2></div><div className="taskbell"><Bell/><span>{readyCount||''}</span></div></div>
+  {toast&&<div className="notificationtoast card"><div className="scheduledicon"><Bell size={18}/></div><div><b>{toast.title}</b><p>{toast.message}</p></div><button className="iconbtn"onClick={()=>setToast(null)}><XCircle size={18}/></button></div>}
+  <div className="card example scheduleintro"><b>Let ONEBOX wait for the right moment.</b><p>“Book this movie when tickets open.” · “Buy this phone if it drops below ₹55,000.”</p></div>
+  <div className="notificationbar"><div><b>{readyCount?readyCount+' action'+(readyCount===1?'':'s')+' waiting for you':'No action waiting right now'}</b><span>{lastChecked?'Checked '+lastChecked.toLocaleTimeString():'Checking…'} · ONEBOX checks automatically</span></div>{typeof Notification!=='undefined'&&<button className="secondary smallbtn"onClick={enableNotifications}>{notificationsEnabled?'Notifications on':'Enable alerts'}</button>}</div>
+  {error&&<div className="error">{error}<button className="textbtn"onClick={()=>load()}>Retry</button></div>}
+  {loading?<div className="empty">Loading your tasks…</div>:scheduledFiltered.length>0&&<><div className="sectionhead"><h3>Scheduled & conditional</h3><button onClick={()=>load()}>Refresh</button></div><div className="scheduledlist">{scheduledFiltered.map(t=><div className={'card scheduledcard '+(t.status==='CONDITION_MET'?'needsaction':'')}key={t.id}><div className="scheduledicon">{t.triggerType==='PRICE'?<WalletCards/>:t.triggerType==='SLOT'?<Bell/>:<Clock3/>}</div><div className="scheduledbody"><b>{t.title}</b><span>{t.type.replaceAll('_',' ')} · {t.triggerType} trigger</span><small>{t.status==='CONDITION_MET'?'Condition met — confirmation required.':t.status==='COMPLETED'?'Completed.':t.status==='CANCELLED'?'Cancelled.':t.runAtUtc?'Runs '+new Date(t.runAtUtc).toLocaleString():'Watching automatically'}</small></div>{t.status==='CONDITION_MET'&&<button className="primary smallbtn"disabled={busy}onClick={()=>confirm(t.id)}>Confirm</button>}{!['COMPLETED','CANCELLED','CONDITION_MET'].includes(t.status)&&<button className="secondary smallbtn"disabled={busy}onClick={()=>cancel(t.id)}>Cancel</button>}</div>)}</div></>}
+  {!loading&&scheduledFiltered.length===0&&<div className="card empty scheduleempty"><Bell/><b>No scheduled tasks in this view.</b><span>Ask ONEBOX to wait for a time, price, or availability condition.</span></div>}
+  <div className="sectionhead"><h3>Task history</h3></div><div className="tabs"><button className={filter==='ALL'?'active':''}onClick={()=>setFilter('ALL')}>All</button><button className={filter==='RUNNING'?'active':''}onClick={()=>setFilter('RUNNING')}>In Progress</button><button className={filter==='COMPLETED'?'active':''}onClick={()=>setFilter('COMPLETED')}>Completed</button></div>{filtered.length?filtered.map(t=><div className="card task"key={t.id}><CheckCircle2/><div><b>{t.title}</b><span>{t.type.replaceAll('_',' ')}</span></div><em>{t.status}</em></div>):<div className="empty">No tasks yet.</div>}
+ </main>
+}
 function Admin(){const[data,setData]=useState(null),[err,setErr]=useState('');useEffect(()=>{api('/api/admin/overview').then(setData).catch(e=>setErr(e.message))},[]);return <main className="page"><div className="pagehead"><h2>Admin Dashboard</h2><Settings/></div>{err?<div className="error">{err}</div>:data?<><div className="metricgrid">{[['Users',data.users],['Tasks',data.tasks],['Completed',data.completed],['Bookings',data.bookings]].map(([k,v])=><div className="metric card"key={k}><span>{k}</span><b>{v}</b></div>)}</div><div className="card adminnote"><b>Execution success</b><strong>{data.successRate}%</strong><p>Calculated from persisted task records.</p></div></>:<div className="empty">Loading metrics…</div>}</main>}
 
 function SettingsItem({title,children}){return <main className="page"><div className="pagehead"><h2>{title}</h2><Settings/></div>{children||<div className="card example"><p>This section is connected to ONEBOX settings. Provider-specific credentials and payment instruments are only stored after an authorized integration is configured.</p></div>}</main>}
