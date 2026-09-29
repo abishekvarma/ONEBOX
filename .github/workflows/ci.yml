@@ -128,12 +128,15 @@ jobs:
             -e Commerce__Providers__Amazon__Endpoint= \
             -e Commerce__Providers__Amazon__ApiKey= \
             -e Commerce__Providers__Flipkart__Endpoint= \
-            -e Commerce__Providers__Flipkart__ApiKey= api >/dev/null
+            -e Commerce__Providers__Flipkart__ApiKey= \
+            -e ExposeOtpInDevelopment=true api >/dev/null
           trap 'docker rm -f onebox-live-api >/dev/null 2>&1 || true' EXIT
+          READY=0
           for i in {1..60}; do
-            if curl -fsS http://localhost:5081/health >/dev/null; then break; fi
+            if curl -fsS http://localhost:5081/health >/dev/null; then READY=1; break; fi
             sleep 2
           done
+          test "$READY" = "1"
           test "$(curl -sS -o /tmp/live-register.json -w '%{http_code}' -X POST http://localhost:5081/api/auth/register -H 'Content-Type: application/json' -d '{"name":"Live CI","email":"live-ci-'"$GITHUB_RUN_ID"'@example.com","password":"TestPassword123!","phone":"9999999998"}')" = "200"
           OTP=$(python -c 'import json; print(json.load(open("/tmp/live-register.json"))["developmentOtp"])')
           VERIFY=$(curl -fsS -X POST http://localhost:5081/api/auth/verify-otp -H 'Content-Type: application/json' -d '{"email":"live-ci-'"$GITHUB_RUN_ID"'@example.com","otp":"'"$OTP"'"}')
