@@ -17,6 +17,7 @@ jobs:
       JWT_KEY: ci-jwt-key-must-be-at-least-32-characters-long
       ONEBOX_AGENT_SECRET: ci-agent-secret
       ONEBOX_EXECUTION_MODE: sandbox
+      COMMERCE_MODE: ci
       EXPOSE_OTP_IN_DEVELOPMENT: "false"
       OPENAI_API_KEY: ""
       OPENAI_MODEL: gpt-5.6-luna
