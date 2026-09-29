@@ -90,6 +90,16 @@ jobs:
           PAYLOAD=$(printf '{"taskId":"%s","providerId":"ci-provider","providerName":"CI Restaurant","category":"RESTAURANT_BOOKING","distanceKm":2.1,"rating":4.5,"ratingCount":120,"priceLevel":"PRICE_LEVEL_MODERATE"}' "$TASK")
           S=$(curl -fsS -X POST http://localhost:5080/api/providers/select -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' --data-raw "$PAYLOAD")
           echo "$S" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["providerId"]=="ci-provider"; assert d["status"] in ("READY","AWAITING_CONFIRMATION","COMPLETED")'
+      - name: Test multilingual language layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          L=$(curl -fsS http://localhost:5080/api/languages -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$L" | python -c 'import json,sys; codes={x["code"] for x in json.load(sys.stdin)["languages"]}; assert {"en","kn","te","ta","ml","hi","mr","ur","pa","fr","pt"} <= codes'
+          D=$(curl -fsS --get --data-urlencode 'text=ನನಗೆ ಹತ್ತಿರದ ಆಸ್ಪತ್ರೆ ಬೇಕು' http://localhost:5080/api/languages/detect -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$D" | python -c 'import json,sys; assert json.load(sys.stdin)["language"]["code"]=="kn"'
+          D=$(curl -fsS --get --data-urlencode 'text=मुझे अस्पताल चाहिए' http://localhost:5080/api/languages/detect -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$D" | python -c 'import json,sys; assert json.load(sys.stdin)["language"]["code"]=="hi"'
       - name: Test task planning and sandbox execution
         shell: bash
         run: |
