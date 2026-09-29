@@ -118,6 +118,19 @@ jobs:
           C=$(curl -fsS --get --data-urlencode 'query=iPhone 17' http://localhost:5080/api/commerce/compare -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["products"]; offers=[o for p in d["products"] for o in p["offers"]]; assert {"Amazon India","Flipkart"} <= {o["providerName"] for o in offers}; assert all(o["price"]>0 for o in offers)'
           echo "Shopping comparison passed."
+      - name: Test shopping offer selection
+        run: |
+          P=$(curl -fsS --get --data-urlencode 'query=iPhone 17' http://localhost:5080/api/commerce/compare -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          PID=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["products"][0]["productId"])' <<< "$P")
+          TITLE=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["products"][0]["title"])' <<< "$P")
+          OFFER=$(python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d["products"][0]["offers"][0]))' <<< "$P")
+          OID=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["providerId"])' <<< "$OFFER")
+          ONAME=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["providerName"])' <<< "$OFFER")
+          PRICE=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["price"])' <<< "$OFFER")
+          CUR=$(python -c 'import json,sys; d=json.load(sys.stdin); print(d["currency"])' <<< "$OFFER")
+          PAYLOAD=$(python -c 'import json,sys; print(json.dumps({"providerId":sys.argv[1],"providerName":sys.argv[2],"productId":sys.argv[3],"title":sys.argv[4],"price":float(sys.argv[5]),"currency":sys.argv[6]}))' "$OID" "$ONAME" "$PID" "$TITLE" "$PRICE" "$CUR")
+          S=$(curl -fsS -X POST http://localhost:5080/api/commerce/select -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d "$PAYLOAD")
+          echo "$S" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["requiresConfirmation"] is True; assert d["status"]=="AWAITING_CONFIRMATION"; assert d["taskId"]; print("Shopping selection passed.")'
       - name: Test live commerce refuses fabricated provider data
         shell: bash
         run: |
