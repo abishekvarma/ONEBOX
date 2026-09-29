@@ -15,7 +15,7 @@ public sealed class ProfileController(OneBoxDb db):ControllerBase{
   var p=await db.UserProfiles.SingleOrDefaultAsync(x=>x.UserId==UserId,ct);if(p is null)return Ok(new{fields=new Dictionary<string,string?>(),usedProfile=false});
   var allowed=new Dictionary<string,string?>(StringComparer.OrdinalIgnoreCase){{"addressLine1",p.AddressLine1},{"addressLine2",p.AddressLine2},{"city",p.City},{"state",p.State},{"postalCode",p.PostalCode},{"country",p.Country},{"preferredLanguage",p.PreferredLanguage},{"emergencyContactName",p.EmergencyContactName},{"emergencyContactPhone",p.EmergencyContactPhone}};
   var fields=new Dictionary<string,string?>(StringComparer.OrdinalIgnoreCase);foreach(var key in r.Fields??[])if(allowed.TryGetValue(key,out var value)&&!string.IsNullOrWhiteSpace(value))fields[key]=value;
-  db.AuditEvents.Add(new AuditEvent{UserId=UserId,EventType="PROFILE_AUTOFILL_USED",Detail=$"Autofilled {fields.Count} approved profile fields."});await db.SaveChangesAsync(ct);return Ok(new{fields,usedProfile:fields.Count>0});
+  db.AuditEvents.Add(new AuditEvent{UserId=UserId,EventType="PROFILE_AUTOFILL_USED",Detail=$"Autofilled {fields.Count} approved profile fields."});await db.SaveChangesAsync(ct);return Ok(new{fields,usedProfile=fields.Count>0});
  }
  static string? C(string? v)=>string.IsNullOrWhiteSpace(v)?null:v.Trim();static ProfileResponse ToResponse(UserProfile p)=>new(p.AddressLine1,p.AddressLine2,p.City,p.State,p.PostalCode,p.Country,p.PreferredLanguage,p.EmergencyContactName,p.EmergencyContactPhone);
 }
