@@ -100,6 +100,16 @@ jobs:
           echo "$D" | python -c 'import json,sys; assert json.load(sys.stdin)["language"]["code"]=="kn"'
           D=$(curl -fsS --get --data-urlencode 'text=मुझे अस्पताल चाहिए' http://localhost:5080/api/languages/detect -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$D" | python -c 'import json,sys; assert json.load(sys.stdin)["language"]["code"]=="hi"'
+      - name: Test profile storage and controlled autofill
+        shell: bash
+        run: |
+          set -euo pipefail
+          U=$(curl -fsS http://localhost:5080/api/profile -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
+          echo "$U" | python -c 'import json,sys; assert json.load(sys.stdin)["preferredLanguage"]=="en"'
+          curl -fsS -X PUT http://localhost:5080/api/profile -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"addressLine1":"10 Test Street","city":"Bengaluru","state":"Karnataka","postalCode":"560001","country":"India","preferredLanguage":"kn","emergencyContactName":"Test Contact","emergencyContactPhone":"9000000000"}' >/dev/null
+          A=$(curl -fsS -X POST http://localhost:5080/api/profile/autofill -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"fields":["addressLine1","city","postalCode","secret"]}')
+          echo "$A" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["usedProfile"] is True; assert d["fields"]["city"]=="Bengaluru"; assert "secret" not in d["fields"]'
+          echo "Profile save and allowlisted autofill passed."
       - name: Test task planning and sandbox execution
         shell: bash
         run: |
