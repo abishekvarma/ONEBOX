@@ -71,6 +71,13 @@ jobs:
           set -euo pipefail
           Q=$(curl -fsS -X POST http://localhost:5080/api/payments/quote -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"providerAmount":350}')
           echo "$Q" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["providerAmount"]==350; assert d["platformFee"]==35; assert d["total"]==385'
+      - name: Test payment checkout safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          R=$(curl -sS -o /tmp/payment.json -w '%{http_code}' -X POST http://localhost:5080/api/payments/checkout -H "Authorization: Bearer $ONEBOX_CI_TOKEN" -H 'Content-Type: application/json' -d '{"taskId":"00000000-0000-0000-0000-000000000001","provider":"ONEBOX","providerAmount":350}')
+          test "$R" = "404"
+          echo "Payment endpoint rejects unknown task before creating a transaction."
       - name: Test task planning and sandbox execution
         shell: bash
         run: |
