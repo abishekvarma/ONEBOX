@@ -22,7 +22,7 @@ public static class LanguageService
         if(text.Any(c=>c>='\u0A00'&&c<='\u0A7F'))return "pa";
         return "en";
     }
-    public static LanguageInfo Get(string code)=>Supported.FirstOrDefault(x=>x.Code==code)||Supported[0];
+    public static LanguageInfo Get(string code)=>Supported.FirstOrDefault(x=>x.Code==code)??Supported[0];
     public static string SameLanguageInstruction(string language)=>$"The user's preferred language is {Get(language).Name} (code {language}). Respond to the user in that language whenever practical. Preserve product names, URLs, amounts, dates, provider names and structured task fields exactly.";
     public static string Text(string key,string language)=>(key,language) switch
     {
