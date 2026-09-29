@@ -23,6 +23,11 @@ services:
       Execution__LocalAgentUrl: http://agent:8787
       Execution__AgentSharedSecret: ${ONEBOX_AGENT_SECRET}
       Execution__Mode: ${ONEBOX_EXECUTION_MODE}
+      Commerce__Mode: ${COMMERCE_MODE:-live}
+      Commerce__Providers__Amazon__Endpoint: ${COMMERCE_AMAZON_ENDPOINT}
+      Commerce__Providers__Amazon__ApiKey: ${COMMERCE_AMAZON_API_KEY}
+      Commerce__Providers__Flipkart__Endpoint: ${COMMERCE_FLIPKART_ENDPOINT}
+      Commerce__Providers__Flipkart__ApiKey: ${COMMERCE_FLIPKART_API_KEY}
       AI__ApiKey: ${OPENAI_API_KEY}
       AI__Model: ${OPENAI_MODEL}
       Google__ApiKey: ${GOOGLE_API_KEY}
