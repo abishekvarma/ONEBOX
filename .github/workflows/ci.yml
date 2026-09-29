@@ -118,6 +118,40 @@ jobs:
           C=$(curl -fsS --get --data-urlencode 'query=iPhone 17' http://localhost:5080/api/commerce/compare -H "Authorization: Bearer $ONEBOX_CI_TOKEN")
           echo "$C" | python -c 'import json,sys; d=json.load(sys.stdin); assert d["products"]; offers=[o for p in d["products"] for o in p["offers"]]; assert {"Amazon India","Flipkart"} <= {o["providerName"] for o in offers}; assert all(o["price"]>0 for o in offers)'
           echo "Shopping comparison passed."
+      - name: Test live commerce refuses fabricated provider data
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose run -d --name onebox-live-api -p 5081:8080 \
+            -e Commerce__Mode=live \
+            -e COMMERCE_MODE=live \
+            -e Commerce__Providers__Amazon__Endpoint= \
+            -e Commerce__Providers__Amazon__ApiKey= \
+            -e Commerce__Providers__Flipkart__Endpoint= \
+            -e Commerce__Providers__Flipkart__ApiKey= \
+            -e Security__ExposeOtpInDevelopment=true \
+            api >/dev/null
+          trap 'docker rm -f onebox-live-api >/dev/null 2>&1 || true' EXIT
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://localhost:5081/health >/dev/null; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = "1"
+          REGISTER=$(curl -fsS -X POST http://localhost:5081/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"name":"Live CI","email":"live-ci-'"$GITHUB_RUN_ID"'@example.com","password":"TestPassword123!","phone":"9999999998"}')
+          OTP=$(printf '%s' "$REGISTER" | python -c 'import json,sys; print(json.load(sys.stdin)["developmentOtp"])')
+          VERIFY=$(curl -fsS -X POST http://localhost:5081/api/auth/verify-otp \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"live-ci-'"$GITHUB_RUN_ID"'@example.com","otp":"'"$OTP"'"}')
+          TOKEN=$(printf '%s' "$VERIFY" | python -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          R=$(curl -sS -o /tmp/live-commerce.json -w '%{http_code}' --get --data-urlencode 'query=iPhone 17' \
+            http://localhost:5081/api/commerce/compare -H "Authorization: Bearer $TOKEN")
+          test "$R" = "503"
+          python -c 'import json; d=json.load(open("/tmp/live-commerce.json")); assert d["live"] is False; assert "authorized live commerce provider" in d["message"]'
+          echo "Live commerce correctly blocks without authorized provider data."
+
       - name: Test task planning and sandbox execution
         shell: bash
         run: |
